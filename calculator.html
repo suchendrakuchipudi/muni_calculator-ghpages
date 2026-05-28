@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Muni Bond Calculator</title>
+    <style>
+        :root {
+            --primary: #0056b3;
+            --bg-color: #f4f7f6;
+            --card-bg: #ffffff;
+            --text-main: #333333;
+            --border-color: #dce1e6;
+            --accent: #28a745;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: auto;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        h1, h2, h3 { color: var(--primary); }
+        .card {
+            background-color: var(--card-bg);
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            border: 1px solid var(--border-color);
+            margin-bottom: 20px;
+        }
+        .form-group {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 12px;
+            align-items: center;
+        }
+        label { font-weight: 600; font-size: 14px; }
+        input {
+            width: 40%;
+            padding: 6px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .output-group {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .output-group:last-child { border-bottom: none; }
+        .output-value { font-weight: bold; color: var(--primary); }
+        .output-highlight { color: var(--accent); font-size: 16px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { text-align: center; padding: 8px; border: 1px solid var(--border-color); }
+        th { background-color: #f0f4f8; }
+        
+        .btn-fetch {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: bold;
+            width: 100%;
+            margin-top: 10px;
+            transition: background 0.3s;
+        }
+        .btn-fetch:hover { background-color: #004494; }
+        .btn-fetch:disabled { background-color: #999; cursor: not-allowed; }
+        .header-flex { display: flex; justify-content: space-between; align-items: center; }
+
+        @media (max-width: 768px) {
+            .container { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+<h1>Municipal Bond Calculator</h1>
+
+<div class="container">
+    <div class="left-column">
+        <div class="card" id="section1-inputs">
+            <h2>BOND INFORMATION</h2>
+            <div class="form-group"><label>CUSIP</label><input type="text" id="cusip" value="123456789"></div>
+            <div class="form-group"><label>Date of Maturity</label><input type="date" id="maturityDate" value="2036-05-27"></div>
+            <div class="form-group"><label>Coupon (%)</label><input type="number" id="coupon" value="5.00" step="0.01"></div>
+            <div class="form-group"><label>Coupon Freq (Per Year)</label><input type="number" id="freq" value="2" step="1"></div>
+            <div class="form-group"><label>Current Price ($)</label><input type="number" id="price" value="105.50" step="0.01"></div>
+            <div class="form-group"><label>Current Closing Date</label><input type="date" id="closingDate" value="2026-05-27"></div>
+            <div class="form-group"><label>Next Call Date (Optional)</label><input type="date" id="callDate" value="2031-05-27"></div>
+            <div class="form-group"><label>Tax Rate (%)</label><input type="number" id="taxRate" value="42.00" step="0.01"></div>
+        </div>
+
+        <div class="card">
+            <div class="header-flex">
+                <h2 style="margin: 0;">TREASURY RATES</h2>
+            </div>
+            <table>
+                <tr><th>Tenor</th><th>Years</th><th>Yield (%)</th></tr>
+                <tr><td>6M</td><td>0.5</td><td><input type="number" id="t_0_5" value="4.00" step="0.01" style="width:80%"></td></tr>
+                <tr><td>2Y</td><td>2</td><td><input type="number" id="t_2" value="4.13" step="0.01" style="width:80%"></td></tr>
+                <tr><td>5Y</td><td>5</td><td><input type="number" id="t_5" value="4.26" step="0.01" style="width:80%"></td></tr>
+                <tr><td>10Y</td><td>10</td><td><input type="number" id="t_10" value="4.56" step="0.01" style="width:80%"></td></tr>
+                <tr><td>20Y</td><td>20</td><td><input type="number" id="t_20" value="5.30" step="0.01" style="width:80%"></td></tr>
+                <tr><td>30Y</td><td>30</td><td><input type="number" id="t_30" value="5.07" step="0.01" style="width:80%"></td></tr>
+            </table>
+            <button class="btn-fetch" id="fetchBtn" onclick="fetchTreasuryRates()">Fetch Live Rates (home.treasury.gov)</button>
+            <div id="fetchStatus" style="font-size: 11px; text-align: center; margin-top: 5px; color: #666;"></div>
+        </div>
+        
+        <div class="card">
+            <h2>PRICE SIMULATION</h2>
+            <p style="font-size: 13px; color: #666;">Estimate new bond price based on rate and spread shocks using Duration and Convexity.</p>
+            <div class="form-group"><label>Yield Curve Shift (bps)</label><input type="number" id="yieldShock" value="50" step="1"></div>
+            <div class="form-group"><label>Credit Spread Shift (bps)</label><input type="number" id="spreadShock" value="25" step="1"></div>
+            
+            <div class="output-group"><label>Estimated New Price</label><span class="output-value output-highlight" id="out_newPrice">$0.00</span></div>
+            <div class="output-group"><label>Price Change (%)</label><span class="output-value" id="out_priceChange">0.00%</span></div>
+        </div>
+    </div>
+
+    <div class="right-column">
+        <div class="card">
+            <h2>BOND METRICS</h2>
+            <div class="output-group"><label>Accrued Interest</label><span class="output-value" id="out_accrued">$0.00</span></div>
+            <div class="output-group"><label>Coupon Amount (Per Period)</label><span class="output-value" id="out_couponAmt">$0.00</span></div>
+            <div class="output-group"><label>YTM (%)</label><span class="output-value" id="out_ytm">0.00%</span></div>
+            <div class="output-group"><label>YTM (Tax Adjusted %)</label><span class="output-value" id="out_ytmTax">0.00%</span></div>
+            <div class="output-group"><label>YTW (%)</label><span class="output-value" id="out_ytw">0.00%</span></div>
+            <div class="output-group"><label>Spread to Treasury (bps)</label><span class="output-value" id="out_spread">0 bps</span></div>
+        </div>
+
+        <div class="card">
+            <h2>RISK METRICS</h2>
+            <div class="output-group"><label>Rate Duration (Modified)</label><span class="output-value" id="out_modDur">0.00</span></div>
+            <div class="output-group"><label>CS01 ($)</label><span class="output-value" id="out_cs01">0.00</span></div>
+            <div class="output-group"><label>Spread Duration</label><span class="output-value" id="out_spreadDur">0.00</span></div>
+            <div class="output-group"><label>Convexity</label><span class="output-value" id="out_convexity">0.00</span></div>
+            
+            <h3 style="margin-top:20px;">Key Rate Durations</h3>
+            <div class="output-group"><label>2Y KRD</label><span class="output-value" id="out_krd_2">0.00</span></div>
+            <div class="output-group"><label>5Y KRD</label><span class="output-value" id="out_krd_5">0.00</span></div>
+            <div class="output-group"><label>10Y KRD</label><span class="output-value" id="out_krd_10">0.00</span></div>
+            <div class="output-group"><label>20Y KRD</label><span class="output-value" id="out_krd_20">0.00</span></div>
+            <div class="output-group"><label>30Y KRD</label><span class="output-value" id="out_krd_30">0.00</span></div>
+            <div class="output-group"><label>Total KRD</label><span class="output-value" id="out_krd_total">0.00</span></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- UPDATED API FETCH FUNCTION (MULTI-PROXY FAILOVER) ---
+    async function fetchTreasuryRates() {
+        const btn = document.getElementById('fetchBtn');
+        const statusText = document.getElementById('fetchStatus');
+        
+        btn.innerText = "Fetching...";
+        btn.disabled = true;
+        
+        const currentYear = new Date().getFullYear();
+        const treasuryUrl = `https://home.treasury.gov/resource-center/data-chart-center/interest-rates/pages/xml?data=daily_treasury_yield_curve&field_tdr_date_value=${currentYear}`;
+        
+        // Failover array: If one proxy drops the .gov request, the next one executes instantly
+        const proxies = [
+            `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(treasuryUrl)}`,
+            `https://corsproxy.io/?${encodeURIComponent(treasuryUrl)}`,
+            `https://api.allorigins.win/raw?url=${encodeURIComponent(treasuryUrl)}`
+        ];
+
+        let text = null;
+
+        for (let proxy of proxies) {
+            try {
+                const response = await fetch(proxy);
+                if (response.ok) {
+                    text = await response.text();
+                    // Validate we received the actual Treasury XML feed
+                    if (text && text.includes("<entry")) {
+                        break; // Success! Exit the failover loop.
+                    }
+                }
+            } catch (e) {
+                console.warn(`Proxy failed, switching to next: ${proxy}`);
+            }
+        }
+
+        if (!text || !text.includes("<entry")) {
+            statusText.innerText = "Error: Blocked by CORS proxies or Treasury site is down.";
+            statusText.style.color = "red";
+            btn.innerText = "Fetch Live Rates";
+            btn.disabled = false;
+            return;
+        }
+
+        try {
+            const parser = new DOMParser();
+            const xml = parser.parseFromString(text, "text/xml");
+            
+            const entries = xml.getElementsByTagName("entry");
+            if (entries.length === 0) throw new Error("No entries found in XML.");
+            const latestEntry = entries[entries.length - 1];
+
+            const getVal = (tagName) => {
+                let node = latestEntry.getElementsByTagName(`d:${tagName}`)[0] || latestEntry.getElementsByTagName(tagName)[0];
+                return node ? parseFloat(node.textContent).toFixed(2) : "0.00";
+            };
+
+            document.getElementById('t_0_5').value = getVal("BC_6MONTH");
+            document.getElementById('t_2').value = getVal("BC_2YEAR");
+            document.getElementById('t_5').value = getVal("BC_5YEAR");
+            document.getElementById('t_10').value = getVal("BC_10YEAR");
+            document.getElementById('t_20').value = getVal("BC_20YEAR");
+            document.getElementById('t_30').value = getVal("BC_30YEAR");
+
+            let dateNode = latestEntry.getElementsByTagName("d:NEW_DATE")[0] || latestEntry.getElementsByTagName("NEW_DATE")[0];
+            let recordDate = dateNode ? dateNode.textContent.split('T')[0] : "Unknown";
+
+            statusText.innerText = `Live Rates Fetched: ${recordDate}`;
+            statusText.style.color = "var(--accent)";
+            
+            updateCalculations();
+            
+        } catch (error) {
+            console.error("Error parsing Treasury rates:", error);
+            statusText.innerText = "Error parsing XML data.";
+            statusText.style.color = "red";
+        } finally {
+            btn.innerText = "Fetch Live Rates";
+            btn.disabled = false;
+        }
+    }
+
+    // --- CALCULATOR FUNCTIONS ---
+    function yearFrac(date1, date2) {
+        return Math.max(0, (new Date(date2) - new Date(date1)) / (1000 * 3600 * 24 * 365.25));
+    }
+
+    function getPV(yield, faceValue, couponRate, freq, periodsToMaturity) {
+        let pv = 0;
+        let r = yield / freq;
+        let couponPmt = (couponRate * faceValue) / freq;
+        for (let t = 1; t <= periodsToMaturity; t++) {
+            pv += couponPmt / Math.pow(1 + r, t);
+        }
+        pv += faceValue / Math.pow(1 + r, periodsToMaturity);
+        return pv;
+    }
+
+    function calculateYield(price, faceValue, couponRate, freq, yearsToMaturity) {
+        let low = 0.00001, high = 0.50, ytm = 0.0;
+        let periods = yearsToMaturity * freq;
+        
+        for (let i = 0; i < 100; i++) {
+            ytm = (low + high) / 2;
+            let pv = getPV(ytm, faceValue, couponRate, freq, periods);
+            
+            if (pv > price) low = ytm;
+            else high = ytm;
+            
+            if (Math.abs(pv - price) < 0.001) break;
+        }
+        return ytm;
+    }
+
+    function updateCalculations() {
+        let maturity = document.getElementById('maturityDate').value;
+        let closing = document.getElementById('closingDate').value;
+        let call = document.getElementById('callDate').value;
+        let coupon = parseFloat(document.getElementById('coupon').value) / 100;
+        let freq = parseInt(document.getElementById('freq').value);
+        let price = parseFloat(document.getElementById('price').value);
+        let tax = parseFloat(document.getElementById('taxRate').value) / 100;
+        
+        let yieldShockBps = parseFloat(document.getElementById('yieldShock').value) || 0;
+        let spreadShockBps = parseFloat(document.getElementById('spreadShock').value) || 0;
+        
+        let faceValue = 100;
+        let yearsToMaturity = yearFrac(closing, maturity);
+        let periodsToMaturity = yearsToMaturity * freq;
+
+        let couponAmt = (coupon * faceValue) / freq;
+        document.getElementById('out_couponAmt').innerText = "$" + couponAmt.toFixed(2);
+
+        let daysToNextPmt = (yearsToMaturity % (1/freq)) * 365.25;
+        let daysInPeriod = 365.25 / freq;
+        let accrued = couponAmt * (1 - (daysToNextPmt / daysInPeriod));
+        document.getElementById('out_accrued').innerText = "$" + accrued.toFixed(2);
+
+        let ytm = calculateYield(price, faceValue, coupon, freq, yearsToMaturity);
+        document.getElementById('out_ytm').innerText = (ytm * 100).toFixed(2) + "%";
+
+        let taxYtm = ytm / (1 - tax);
+        document.getElementById('out_ytmTax').innerText = (taxYtm * 100).toFixed(2) + "%";
+
+        let ytw = ytm;
+        if (call) {
+            let yearsToCall = yearFrac(closing, call);
+            if (yearsToCall > 0) {
+                let ytc = calculateYield(price, faceValue, coupon, freq, yearsToCall);
+                ytw = Math.min(ytm, ytc);
+            }
+        }
+        document.getElementById('out_ytw').innerText = (ytw * 100).toFixed(2) + "%";
+
+        let t_yields = [
+            { yrs: 0.5, y: parseFloat(document.getElementById('t_0_5').value)/100 },
+            { yrs: 2, y: parseFloat(document.getElementById('t_2').value)/100 },
+            { yrs: 5, y: parseFloat(document.getElementById('t_5').value)/100 },
+            { yrs: 10, y: parseFloat(document.getElementById('t_10').value)/100 },
+            { yrs: 20, y: parseFloat(document.getElementById('t_20').value)/100 },
+            { yrs: 30, y: parseFloat(document.getElementById('t_30').value)/100 }
+        ];
+        
+        let matchingTreasuryYield = t_yields[t_yields.length-1].y;
+        for(let i=0; i<t_yields.length; i++) {
+            if(yearsToMaturity <= t_yields[i].yrs) {
+                matchingTreasuryYield = t_yields[i].y;
+                break;
+            }
+        }
+        let spread = (ytw - matchingTreasuryYield) * 10000;
+        document.getElementById('out_spread').innerText = spread.toFixed(0) + " bps";
+
+        let bpShock = 0.0001;
+        let priceUp = getPV(ytm + bpShock, faceValue, coupon, freq, periodsToMaturity);
+        let priceDown = getPV(ytm - bpShock, faceValue, coupon, freq, periodsToMaturity);
+        
+        let cs01 = (priceDown - priceUp) / 2;
+        document.getElementById('out_cs01').innerText = "$" + cs01.toFixed(4);
+
+        let spreadDur = cs01 / (price * bpShock);
+        document.getElementById('out_spreadDur').innerText = spreadDur.toFixed(2);
+
+        let rateDur = (priceDown - priceUp) / (2 * price * bpShock);
+        document.getElementById('out_modDur').innerText = rateDur.toFixed(2);
+
+        let convexity = (priceUp + priceDown - (2 * price)) / (price * Math.pow(bpShock, 2));
+        document.getElementById('out_convexity').innerText = convexity.toFixed(2);
+
+        let r = ytm / freq;
+        let krNodes = [2, 5, 10, 20, 30];
+        let krDurations = {2:0, 5:0, 10:0, 20:0, 30:0};
+
+        for (let t = 1; t <= periodsToMaturity; t++) {
+            let cfTime = t / freq;
+            let cf = (t === Math.ceil(periodsToMaturity)) ? couponAmt + faceValue : couponAmt;
+            let pv_cf = cf / Math.pow(1 + r, t);
+            let durationContribution = (cfTime * pv_cf) / price / (1 + r);
+
+            if (cfTime <= 2) {
+                krDurations[2] += durationContribution;
+            } else if (cfTime >= 30) {
+                krDurations[30] += durationContribution;
+            } else {
+                for (let i = 0; i < krNodes.length - 1; i++) {
+                    let n1 = krNodes[i];
+                    let n2 = krNodes[i+1];
+                    if (cfTime > n1 && cfTime <= n2) {
+                        let weight2 = (cfTime - n1) / (n2 - n1);
+                        let weight1 = 1 - weight2;
+                        krDurations[n1] += durationContribution * weight1;
+                        krDurations[n2] += durationContribution * weight2;
+                        break;
+                    }
+                }
+            }
+        }
+
+        document.getElementById('out_krd_2').innerText = krDurations[2].toFixed(2);
+        document.getElementById('out_krd_5').innerText = krDurations[5].toFixed(2);
+        document.getElementById('out_krd_10').innerText = krDurations[10].toFixed(2);
+        document.getElementById('out_krd_20').innerText = krDurations[20].toFixed(2);
+        document.getElementById('out_krd_30').innerText = krDurations[30].toFixed(2);
+        
+        let krdTotal = krDurations[2] + krDurations[5] + krDurations[10] + krDurations[20] + krDurations[30];
+        document.getElementById('out_krd_total').innerText = krdTotal.toFixed(2);
+
+        let dy = yieldShockBps / 10000;
+        let ds = spreadShockBps / 10000;
+        let totalYieldShift = dy + ds;
+
+        let pctPriceChange = (-rateDur * dy) - (spreadDur * ds) + (0.5 * convexity * Math.pow(totalYieldShift, 2));
+        let newPrice = price * (1 + pctPriceChange);
+
+        document.getElementById('out_priceChange').innerText = (pctPriceChange * 100).toFixed(2) + "%";
+        document.getElementById('out_newPrice').innerText = "$" + newPrice.toFixed(2);
+        
+        document.getElementById('out_priceChange').style.color = pctPriceChange >= 0 ? "var(--accent)" : "#dc3545";
+    }
+
+    // Attach event listeners
+    document.querySelectorAll('input').forEach(input => {
+        input.addEventListener('input', updateCalculations);
+    });
+
+    // Run on load
+    updateCalculations();
+</script>
+</body>
+</html>
